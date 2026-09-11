@@ -1,85 +1,64 @@
-import platform
+from pathlib import Path
+
 import setuptools
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
 
-
-# Build extras_requires based on platform
-def build_additional_requires():
-    # py_version = platform.python_version()[0:3].replace('.', "")
-    # if platform.system() == "Linux" and platform.machine() == "x86_64":
-    #     additional_requires=[
-    #         f"speexdsp_ns @ https://github.com/dscripka/openWakeWord/releases/download/v0.1.1/speexdsp_ns-0.1.2-cp{py_version}-cp{py_version}-linux_x86_64.whl",
-    #     ]
-    # elif platform.system() == "Linux" and platform.machine() == "aarch64":
-    #     additional_requires=[
-    #         f"speexdsp_ns @ https://github.com/dscripka/openWakeWord/releases/download/v0.1.1/speexdsp_ns-0.1.2-cp{py_version}-cp{py_version}-linux_aarch64.whl",
-    #     ],
-    if platform.system() == "Windows" and platform.machine() == "x86_64":
-        additional_requires = [
-            'PyAudioWPatch'
-        ]
-    else:
-        additional_requires = []
-
-    return additional_requires
+long_description = Path("README.md").read_text(encoding="utf-8")
 
 
 setuptools.setup(
     name="openwakeword",
     version="0.6.0",
     install_requires=[
-        'onnxruntime>=1.10.0,<2',
-        'ai-edge-litert>=2.0.2,<3; platform_system == "Linux" or platform_system == "Darwin"',
-        'speexdsp-ns>=0.1.2,<1; platform_system == "Linux"',
-        'tqdm>=4.0,<5.0',
-        'scipy>=1.3,<2',
-        'scikit-learn>=1,<2',
-        'requests>=2.0,<3',
+        "numpy>=1.26,<3",
+        "onnxruntime>=1.18,<2",
+        "tqdm>=4,<5",
+        "scipy>=1.11,<2",
+        "scikit-learn>=1.4,<2",
+        "requests>=2,<3",
     ],
     extras_require={
-        'test': [
-                    'pytest>=7.2.0,<8',
-                    'pytest-cov>=2.10.1,<3',
-                    'pytest-flake8>=1.1.1,<2',
-                    'flake8>=5.0,<7.1',
-                    'pytest-mypy>=0.10.0,<1',
-                    'types-requests',
-                    'types-PyYAML',
-                    'mock>=5.1,<6',
-                    'types-mock>=5.1,<6',
-                    'types-requests>=2.0,<3'
-                ],
-        'full': [
-                    'mutagen>=1.46.0,<2',
-                    'torch>=1.13.1,<3',
-                    'torchaudio>=0.13.1,<1',
-                    'torchinfo>=1.8.0,<2',
-                    'torchmetrics>=0.11.4,<1',
-                    'speechbrain>=0.5.14,<1',
-                    'audiomentations>=0.30.0,<1',
-                    'torch-audiomentations>=0.11.0,<1',
-                    'tqdm>=4.64.0,<5',
-                    'pytest>=7.2.0,<8',
-                    'pytest-cov>=2.10.1,<3',
-                    'pytest-flake8>=1.1.1,<2',
-                    'pytest-mypy>=0.10.0,<1',
-                    'acoustics>=0.2.6,<1',
-                    'pyyaml>=6.0,<7',
-                    'tensorflow-cpu==2.8.1',
-                    'tensorflow_probability==0.16.0',
-                    'protobuf>=3.20,<4',
-                    'onnx_tf==1.10.0',
-                    'onnx==1.14.0',
-                    'pronouncing>=0.2.0,<1',
-                    'datasets>=2.14.4,<3',
-                    'deep-phonemizer==0.0.19'
-                ]
+        "tflite": [
+            "ai-edge-litert>=2.0.2,<3; platform_system == 'Linux' or platform_system == 'Darwin'",
+        ],
+        "speex": [
+            "speexdsp-ns>=0.1.2,<1; platform_system == 'Linux'",
+        ],
+        "test": [
+            "pytest>=8,<9",
+            "pytest-cov>=5,<7",
+            "mock>=5.1,<6",
+            "types-requests",
+        ],
+        # Training uses an older TensorFlow/ONNX conversion stack.  Keep it
+        # opt-in and prevent its legacy pins from affecting runtime installs.
+        "full": [
+            "mutagen>=1.46,<2; python_version < '3.12'",
+            "torch>=1.13.1,<3; python_version < '3.12'",
+            "torchaudio>=0.13.1,<1; python_version < '3.12'",
+            "torchinfo>=1.8,<2; python_version < '3.12'",
+            "torchmetrics>=0.11.4,<1; python_version < '3.12'",
+            "speechbrain>=0.5.14,<1; python_version < '3.12'",
+            "audiomentations>=0.30,<1; python_version < '3.12'",
+            "torch-audiomentations>=0.11,<1; python_version < '3.12'",
+            "acoustics>=0.2.6,<1; python_version < '3.12'",
+            "pyyaml>=6,<7; python_version < '3.12'",
+            "tensorflow-cpu==2.8.1; python_version < '3.12'",
+            "tensorflow-probability==0.16.0; python_version < '3.12'",
+            "protobuf>=3.20,<4; python_version < '3.12'",
+            "onnx-tf==1.10.0; python_version < '3.12'",
+            "onnx==1.14.0; python_version < '3.12'",
+            "pronouncing>=0.2,<1; python_version < '3.12'",
+            "datasets>=2.14.4,<3; python_version < '3.12'",
+            "deep-phonemizer==0.0.19; python_version < '3.12'",
+        ],
     },
     author="David Scripka",
     author_email="david.scripka@gmail.com",
-    description="An open-source audio wake word (or phrase) detection framework with a focus on performance and simplicity",
+    description=(
+        "An open-source audio wake word (or phrase) detection framework "
+        "with a focus on performance and simplicity"
+    ),
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://pypi.org/project/openwakeword",
@@ -88,10 +67,13 @@ setuptools.setup(
     },
     classifiers=[
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "License :: OSI Approved :: Apache 2.0 License",
         "Operating System :: OS Independent",
     ],
     packages=setuptools.find_packages(),
     include_package_data=True,
-    python_requires=">=3.10",
+    python_requires=">=3.12",
 )
