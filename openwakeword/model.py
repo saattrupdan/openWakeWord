@@ -16,6 +16,8 @@
 import functools
 import os
 import pickle
+import platform
+import sys
 import time
 import wave
 from collections import defaultdict, deque
@@ -35,6 +37,34 @@ def requested_name_from_path(path: str) -> str:
         if stem.startswith(f"{name}_v"):
             return name
     return stem
+
+
+def _create_speex_noise_suppression() -> object:
+    """Create Speex noise suppression on its only supported environment.
+
+    Raises:
+        ImportError:
+            If the current interpreter cannot use the Speex optional extra.
+    """
+    if (
+        platform.system() != "Linux"
+        or sys.implementation.name != "cpython"
+        or sys.version_info[:2] != (3, 12)
+    ):
+        raise ImportError(
+            "Speex noise suppression is only supported on Linux with CPython "
+            "3.12. The speexdsp-ns extra is unavailable on this platform."
+        )
+
+    try:
+        from speexdsp_ns import NoiseSuppression
+    except ImportError as error:
+        raise ImportError(
+            "Speex noise suppression is unavailable. Install the optional "
+            "dependency with `pip install 'openwakeword[speex]'`."
+        ) from error
+
+    return NoiseSuppression.create(160, 16000)
 
 
 # Define main model class
@@ -66,12 +96,10 @@ class Model():
             class_mapping_dicts (List[dict]): A list of dictionaries with integer to string class mappings for
                                               each model in the `wakeword_models` arguments
                                               (e.g., {"0": "class_1", "1": "class_2"})
-            enable_speex_noise_suppression (bool): Whether to use the noise suppresion from the SpeexDSP
-                                                   library to pre-process all incoming audio. May increase
-                                                   model performance when reasonably stationary background noise
-                                                   is present in the environment where openWakeWord will be used.
-                                                   It is very lightweight, so enabling it doesn't significantly
-                                                   impact efficiency.
+            enable_speex_noise_suppression (bool): Whether to use SpeexDSP noise suppression to pre-process
+                                                    incoming audio. This optional feature is supported only on
+                                                    Linux with CPython 3.12 and requires the ``speex`` extra.
+                                                    Unsupported environments fail explicitly when this is enabled.
             vad_threshold (float): Whether to use a voice activity detection model (VAD) from Silero
                                    (https://github.com/snakers4/silero-vad) to filter predictions.
                                    For every input audio frame, a VAD score is obtained and only those model predictions
@@ -214,10 +242,11 @@ class Model():
         # Create buffer to store frame predictions
         self.prediction_buffer: DefaultDict[str, deque] = defaultdict(partial(deque, maxlen=30))
 
-        # Initialize SpeexDSP noise canceller
+        # Initialize SpeexDSP noise canceller.  The upstream wrapper only
+        # publishes wheels for Linux CPython 3.12, so fail explicitly instead
+        # of making an unsupported platform appear to work until first use.
         if enable_speex_noise_suppression:
-            from speexdsp_ns import NoiseSuppression
-            self.speex_ns = NoiseSuppression.create(160, 16000)
+            self.speex_ns = _create_speex_noise_suppression()
         else:
             self.speex_ns = None
 

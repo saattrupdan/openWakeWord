@@ -30,7 +30,6 @@
 import openwakeword
 import os
 import sys
-import logging
 import numpy as np
 from pathlib import Path
 import collections
@@ -40,17 +39,6 @@ import pickle
 import tempfile
 import mock
 import wave
-
-@pytest.fixture(scope="module", autouse=True)
-def pretrained_models():
-    """Download integration assets when the model tests are actually run."""
-    required = openwakeword.MODELS["alexa"]["model_path"]
-    if not os.path.exists(required):
-        try:
-            openwakeword.utils.download_models()
-        except Exception as error:
-            pytest.skip(f"Could not download integration models: {error}")
-
 
 # Tests
 class TestModels:
@@ -207,11 +195,8 @@ class TestModels:
                             assert max(predictions_flat[key]) >= 0.5
                         else:
                             assert max(predictions_flat[key]) < 0.5
-            except ImportError:
-                logging.warning("Attemped to test Speex noise cancelling functionality, but the 'speexdsp_ns' library was not installed!"
-                                " If you want these tests to be run, install this library as shown in the openwakeword documentation."
-                                )
-                assert 1 == 1
+            except ImportError as error:
+                assert "Speex noise suppression" in str(error)
 
     def test_models_with_debounce(self):
         # Load model with defaults

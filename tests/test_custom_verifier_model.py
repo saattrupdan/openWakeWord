@@ -34,17 +34,6 @@ import scipy.io.wavfile
 import tempfile
 import pytest
 
-@pytest.fixture(scope="module", autouse=True)
-def pretrained_models():
-    """Download integration assets when the verifier test is actually run."""
-    required = openwakeword.MODELS["hey_mycroft"]["model_path"]
-    if not os.path.exists(required):
-        try:
-            openwakeword.utils.download_models(model_names=["alexa", "hey_mycroft"])
-        except Exception as error:
-            pytest.skip(f"Could not download integration models: {error}")
-
-
 # Tests
 class TestModels:
     def test_train_verifier_model(self):
