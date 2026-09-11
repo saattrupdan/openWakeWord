@@ -601,22 +601,36 @@ def compute_features_from_generator(generator, n_total, clip_duration, output_fi
 
 # Function to download files from a URL with a progress bar
 def download_file(url, target_directory, file_size=None):
-    """A simple function to download a file from a URL with a progress bar using only the requests library"""
+    """Download a release asset and publish it atomically.
+
+    Writing to a temporary path prevents an interrupted download from looking
+    like a complete asset to a later invocation of :func:`download_models`.
+    """
     local_filename = url.split('/')[-1]
+    target = pathlib.Path(target_directory)
+    destination = target / local_filename
+    temporary = target / f".{local_filename}.part"
+    progress_bar = None
 
-    with requests.get(url, stream=True) as r:
-        if file_size is not None:
-            progress_bar = tqdm(total=file_size, unit='iB', unit_scale=True, desc=f"{local_filename}")
-        else:
-            total_size = int(r.headers.get('content-length', 0))
-            progress_bar = tqdm(total=total_size, unit='iB', unit_scale=True, desc=f"{local_filename}")
+    try:
+        with requests.get(url, stream=True) as response:
+            response.raise_for_status()
+            if file_size is not None:
+                total_size = file_size
+            else:
+                total_size = int(response.headers.get('content-length', 0))
+            progress_bar = tqdm(total=total_size, unit='iB', unit_scale=True,
+                                desc=f"{local_filename}")
 
-        with open(os.path.join(target_directory, local_filename), 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
-                progress_bar.update(len(chunk))
-
-    progress_bar.close()
+            with temporary.open('wb') as output:
+                for chunk in response.iter_content(chunk_size=8192):
+                    output.write(chunk)
+                    progress_bar.update(len(chunk))
+        os.replace(temporary, destination)
+    finally:
+        if progress_bar is not None:
+            progress_bar.close()
+        temporary.unlink(missing_ok=True)
 
 
 # Function to download models from GitHub release assets
@@ -659,7 +673,7 @@ def download_models(
 
     def download_if_missing(url: str) -> None:
         destination = target / url.rsplit("/", maxsplit=1)[-1]
-        if not destination.exists():
+        if not destination.is_file() or destination.stat().st_size == 0:
             download_file(url, str(target))
 
     # Check every required asset independently so a partial download is repaired.

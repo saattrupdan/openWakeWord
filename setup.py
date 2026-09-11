@@ -19,38 +19,25 @@ setuptools.setup(
     ],
     extras_require={
         "tflite": [
-            "ai-edge-litert>=2.0.2,<3; platform_system == 'Linux' or platform_system == 'Darwin'",
+            # ai-edge-litert publishes wheels for each platform supported by
+            # LiteRT, including Windows.  Do not exclude a supported platform
+            # with a package-level marker.
+            "ai-edge-litert>=2.0.2,<3",
         ],
         "speex": [
-            "speexdsp-ns>=0.1.2,<1; platform_system == 'Linux'",
+            # speexdsp-ns only publishes Linux CPython 3.12 wheels.
+            (
+                "speexdsp-ns>=0.1.2,<1; "
+                "platform_system == 'Linux' and "
+                "platform_python_implementation == 'CPython' and "
+                "python_version == '3.12'"
+            ),
         ],
         "test": [
             "pytest>=8,<9",
             "pytest-cov>=5,<7",
             "mock>=5.1,<6",
             "types-requests",
-        ],
-        # Training uses an older TensorFlow/ONNX conversion stack.  Keep it
-        # opt-in and prevent its legacy pins from affecting runtime installs.
-        "full": [
-            "mutagen>=1.46,<2; python_version < '3.12'",
-            "torch>=1.13.1,<3; python_version < '3.12'",
-            "torchaudio>=0.13.1,<1; python_version < '3.12'",
-            "torchinfo>=1.8,<2; python_version < '3.12'",
-            "torchmetrics>=0.11.4,<1; python_version < '3.12'",
-            "speechbrain>=0.5.14,<1; python_version < '3.12'",
-            "audiomentations>=0.30,<1; python_version < '3.12'",
-            "torch-audiomentations>=0.11,<1; python_version < '3.12'",
-            "acoustics>=0.2.6,<1; python_version < '3.12'",
-            "pyyaml>=6,<7; python_version < '3.12'",
-            "tensorflow-cpu==2.8.1; python_version < '3.12'",
-            "tensorflow-probability==0.16.0; python_version < '3.12'",
-            "protobuf>=3.20,<4; python_version < '3.12'",
-            "onnx-tf==1.10.0; python_version < '3.12'",
-            "onnx==1.14.0; python_version < '3.12'",
-            "pronouncing>=0.2,<1; python_version < '3.12'",
-            "datasets>=2.14.4,<3; python_version < '3.12'",
-            "deep-phonemizer==0.0.19; python_version < '3.12'",
         ],
     },
     author="David Scripka",

@@ -28,7 +28,7 @@ def test_download_models_selects_one_framework_and_repairs_partial_assets(
 
     monkeypatch.setattr(utils, "download_file", fake_download)
     existing = tmp_path / "embedding_model.onnx"
-    existing.touch()
+    existing.write_bytes(b"already downloaded")
 
     utils.download_models(model_names=["hey_jarvis"], target_directory=str(tmp_path))
 
@@ -73,6 +73,13 @@ def test_litert_backend_has_a_helpful_optional_dependency_error(
     monkeypatch.setitem(__import__("sys").modules, "ai_edge_litert", None)
     with pytest.raises(ValueError, match=r"openwakeword\[tflite\]"):
         openwakeword.Model(wakeword_models=["hey_jarvis"], inference_framework="tflite")
+
+
+def test_speex_reports_unsupported_environment(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(model_module.platform, "system", lambda: "Windows")
+
+    with pytest.raises(ImportError, match="only supported on Linux with CPython 3.12"):
+        model_module._create_speex_noise_suppression()
 
 
 def test_hey_jarvis_onnx_prediction_contract(monkeypatch: pytest.MonkeyPatch):

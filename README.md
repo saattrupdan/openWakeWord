@@ -37,18 +37,20 @@ Installing openWakeWord is simple and has minimal dependencies:
 pip install openwakeword
 ```
 
-The base installation uses ONNX Runtime and supports Python 3.12, 3.13, and 3.14. LiteRT is optional:
+The base installation uses ONNX Runtime and supports Python 3.12, 3.13, and 3.14. LiteRT is optional and its current package publishes wheels for Linux, macOS, and Windows:
 
 ```
 pip install 'openwakeword[tflite]'
 ```
 
-To (optionally) use [Speex](https://www.speex.org/) noise suppression on Linux systems, install the system library and the extra:
+[Speex](https://www.speex.org/) noise suppression is an optional, narrowly supported feature. The `speexdsp-ns` dependency currently supports Linux with CPython 3.12 only. On that platform, install the system library and extra:
 
 ```
 sudo apt-get install libspeexdsp-dev
 pip install 'openwakeword[speex]'
 ```
+
+Enabling Speex on another operating system or Python version fails explicitly; the base installation remains supported on Python 3.13 and 3.14 without it.
 
 Many thanks to [TeaPoly](https://github.com/TeaPoly/speexdsp-ns-python) for their Python wrapper of the Speex noise suppression libraries.
 
@@ -106,7 +108,7 @@ See `openwakeword/utils.py` and `openwakeword/model.py` for the full specificati
 
 While the default settings for openWakeWord will work well in many cases, there are adjustable parameters in openWakeWord that can improve performance in some deployment scenarios.
 
-On supported platforms (currently only X86 and Arm64 linux), Speex noise suppression can be enabled by setting the `enable_speex_noise_suppression=True` when instantiating an openWakeWord model. This can improve performance when relatively constant background noise is present.
+On Linux with CPython 3.12, Speex noise suppression can be enabled by setting `enable_speex_noise_suppression=True` when instantiating an openWakeWord model. This can improve performance when relatively constant background noise is present. The `speexdsp-ns` wheel is not available on other platforms or Python versions, and enabling it there raises an explicit error.
 
 Second, a voice activity detection (VAD) model from [Silero](https://github.com/snakers4/silero-vad) is included with openWakeWord, and can be enabled by setting the `vad_threshold` argument to a value between 0 and 1 when instantiating an openWakeWord model. This will only allow a positive prediction from openWakeWord when the VAD model simultaneously has a score above the specified threshold, which can significantly reduce false-positive activations in the present of non-speech noise.
 
@@ -222,6 +224,8 @@ Due to a combination of variability in the generated speech and the extensive pr
 While the models are trained with background noise to increase robustness, in some cases additional noise suppression can improve performance. Setting the `enable_speex_noise_suppression=True` argument during openWakeWord model initialization will use the efficient Speex noise suppression algorithm to pre-process the audio data prior to prediction. This can reduce both false-reject rates and false-accept rates, though testing in a realistic deployment environment is strongly recommended.
 
 # Training New Models
+
+This fork is runtime-focused. The legacy training dependency stack is not supported by the current Python 3.12-3.14 package range, so there is no `full` extra to install for training. Training source remains included for reference and specialised environments; use the linked notebooks or Colab setup for a supported training workflow.
 
 openWakeWord includes an automated utility that greatly simplifies the process of training custom models. This can be used in two ways:
 
