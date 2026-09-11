@@ -37,13 +37,17 @@ Installing openWakeWord is simple and has minimal dependencies:
 pip install openwakeword
 ```
 
-On Linux systems, both the [onnxruntime](https://pypi.org/project/onnxruntime/) package and [tflite-runtime](https://pypi.org/project/tflite-runtime/) packages will be installed as dependencies since both inference frameworks are supported. On Windows, only onnxruntime is installed due to a lack of support for modern versions of tflite.
+The base installation uses ONNX Runtime and supports Python 3.12, 3.13, and 3.14. LiteRT is optional:
 
-To (optionally) use [Speex](https://www.speex.org/) noise suppression on Linux systems to improve performance in noisy environments, install the Speex dependencies and then the pre-built Python package (see the assets [here](https://github.com/dscripka/openWakeWord/releases/tag/v0.1.1) for all .whl versions), adjusting for your python version and system architecture as needed.
+```
+pip install 'openwakeword[tflite]'
+```
+
+To (optionally) use [Speex](https://www.speex.org/) noise suppression on Linux systems, install the system library and the extra:
 
 ```
 sudo apt-get install libspeexdsp-dev
-pip install https://github.com/dscripka/openWakeWord/releases/download/v0.1.1/speexdsp_ns-0.1.2-cp38-cp38-linux_x86_64.whl
+pip install 'openwakeword[speex]'
 ```
 
 Many thanks to [TeaPoly](https://github.com/TeaPoly/speexdsp-ns-python) for their Python wrapper of the Speex noise suppression libraries.
@@ -63,7 +67,7 @@ openwakeword.utils.download_models()
 
 # Instantiate the model(s)
 model = Model(
-    wakeword_models=["path/to/model.tflite"],  # can also leave this argument empty to load all of the included pre-trained models
+    wakeword_models=["path/to/model.onnx"],  # can also leave this argument empty to load all included models
 )
 
 # Get audio data containing 16-bit 16khz PCM audio data from a file, microphone, network stream, etc.

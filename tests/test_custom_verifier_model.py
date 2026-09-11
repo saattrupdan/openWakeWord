@@ -34,8 +34,15 @@ import scipy.io.wavfile
 import tempfile
 import pytest
 
-# Download models needed for tests
-openwakeword.utils.download_models(model_names=["alexa_v0.1", "hey_mycroft_v0.1"])
+@pytest.fixture(scope="module", autouse=True)
+def pretrained_models():
+    """Download integration assets when the verifier test is actually run."""
+    required = openwakeword.MODELS["hey_mycroft"]["model_path"]
+    if not os.path.exists(required):
+        try:
+            openwakeword.utils.download_models(model_names=["alexa", "hey_mycroft"])
+        except Exception as error:
+            pytest.skip(f"Could not download integration models: {error}")
 
 
 # Tests
@@ -72,21 +79,21 @@ class TestModels:
                 positive_reference_clips=reference_clips,
                 negative_reference_clips=negative_clips,
                 output_path=os.path.join(tmp_dir, 'verifier_model.pkl'),
-                model_name=os.path.join("openwakeword", "resources", "models", "hey_mycroft_v0.1.tflite")
+                model_name=os.path.join("openwakeword", "resources", "models", "hey_mycroft_v0.1.onnx")
             )
 
             with pytest.raises(ValueError):
                 # Load model with verifier model incorrectly to catch ValueError
                 owwModel = openwakeword.Model(
                     wakeword_models=[os.path.join("openwakeword", "resources",
-                                     "models", "hey_mycroft_v0.1.tflite")],
+                                     "models", "hey_mycroft_v0.1.onnx")],
                     custom_verifier_models={"bad_key": os.path.join(tmp_dir, "verifier_model.pkl")},
                     custom_verifier_threshold=0.3,
                 )
 
             # Load model with verifier model incorrectly to catch ValueError
             owwModel = openwakeword.Model(
-                wakeword_models=[os.path.join("openwakeword", "resources", "models", "hey_mycroft_v0.1.tflite")],
+                wakeword_models=[os.path.join("openwakeword", "resources", "models", "hey_mycroft_v0.1.onnx")],
                 custom_verifier_models={"hey_mycroft_v0.1": os.path.join(tmp_dir, "verifier_model.pkl")},
                 custom_verifier_threshold=0.3,
             )

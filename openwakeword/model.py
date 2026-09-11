@@ -13,22 +13,33 @@
 # limitations under the License.
 
 # Imports
+import functools
+import os
+import pickle
+import time
+import wave
+from collections import defaultdict, deque
+from functools import partial
+from typing import DefaultDict, Dict, List, Union
+
 import numpy as np
+
 import openwakeword
 from openwakeword.utils import AudioFeatures, re_arg
 
-import wave
-import os
-import logging
-import functools
-import pickle
-from collections import deque, defaultdict
-from functools import partial
-import time
-from typing import List, Union, DefaultDict, Dict
+
+def requested_name_from_path(path: str) -> str:
+    """Return a public model name from a release asset path."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    for name in openwakeword.MODELS:
+        if stem.startswith(f"{name}_v"):
+            return name
+    return stem
 
 
 # Define main model class
+
+
 class Model():
     """
     The main model class for openWakeWord. Creates a model object with the shared audio pre-processer
@@ -43,7 +54,7 @@ class Model():
             vad_threshold: float = 0,
             custom_verifier_models: dict = {},
             custom_verifier_threshold: float = 0.1,
-            inference_framework: str = "tflite",
+            inference_framework: str = "onnx",
             **kwargs
             ):
         """Initialize the openWakeWord model object.
@@ -75,11 +86,16 @@ class Model():
                                                associated custom verifier model will also predict on that frame, and
                                                the verifier score will be returned.
             inference_framework (str): The inference framework to use when for model prediction. Options are
-                                       "tflite" or "onnx". The default is "tflite" as this results in better
-                                       efficiency on common platforms (x86, ARM64), but in some deployment
-                                       scenarios ONNX models may be preferable.
-            kwargs (dict): Any other keyword arguments to pass the the preprocessor instance
+                                       "tflite" or "onnx". The default is "onnx". LiteRT support is optional
+                                       and requires the ``tflite`` extra.
+            kwargs (dict): Any other keyword arguments to pass the preprocessor instance
         """
+        if inference_framework not in {"onnx", "tflite"}:
+            raise ValueError(
+                f"Unsupported inference framework: {inference_framework!r}. "
+                "Choose 'onnx' or 'tflite'."
+            )
+
         # Get model paths for pre-trained models if user doesn't provide models to load
         pretrained_model_paths = openwakeword.get_pretrained_model_paths(inference_framework)
         wakeword_model_names = []
@@ -91,13 +107,18 @@ class Model():
                 if os.path.exists(i):
                     wakeword_model_names.append(os.path.splitext(os.path.basename(i))[0])
                 else:
-                    # Find pre-trained path by modelname
-                    matching_model = [j for j in pretrained_model_paths if i.replace(" ", "_") in j.split(os.path.sep)[-1]]
+                    # Find a pre-trained path by model name.  Accept both the
+                    # public name (``hey_jarvis``) and a release filename stem.
+                    requested_name = os.path.splitext(os.path.basename(i.replace(" ", "_")))[0]
+                    matching_model = [
+                        path for path in pretrained_model_paths
+                        if requested_name == os.path.splitext(os.path.basename(path))[0]
+                        or requested_name == requested_name_from_path(path)
+                    ]
                     if matching_model == []:
-                        raise ValueError("Could not find pretrained model for model name '{}'".format(i))
-                    else:
-                        wakeword_models[ndx] = matching_model[0]
-                        wakeword_model_names.append(i)
+                        raise ValueError(f"Could not find pretrained model for model name '{i}'")
+                    wakeword_models[ndx] = matching_model[0]
+                    wakeword_model_names.append(i)
 
         # Create attributes to store models and metadata
         self.models = {}
@@ -108,27 +129,20 @@ class Model():
         self.custom_verifier_models = {}
         self.custom_verifier_threshold = custom_verifier_threshold
 
-        # Do imports for  inference framework
+        # Do imports for the selected inference framework.
         if inference_framework == "tflite":
             try:
                 import ai_edge_litert.interpreter as tflite
+            except ImportError as error:
+                raise ValueError(
+                    "Tried to import the LiteRT runtime, but it was not found. "
+                    "Install it with `pip install openwakeword[tflite]`."
+                ) from error
 
-                def tflite_predict(tflite_interpreter, input_index, output_index, x):
-                    tflite_interpreter.set_tensor(input_index, x)
-                    tflite_interpreter.invoke()
-                    return tflite_interpreter.get_tensor(output_index)[None, ]
-
-            except ImportError:
-                logging.warning("Tried to import the tflite runtime, but it was not found. "
-                                "Trying to switching to onnxruntime instead, if appropriate models are available.")
-                if wakeword_models != [] and all(['.onnx' in i for i in wakeword_models]):
-                    inference_framework = "onnx"
-                elif wakeword_models != [] and all([os.path.exists(i.replace('.tflite', '.onnx')) for i in wakeword_models]):
-                    inference_framework = "onnx"
-                    wakeword_models = [i.replace('.tflite', '.onnx') for i in wakeword_models]
-                else:
-                    raise ValueError("Tried to import the LiteRT runtime for provided LiteRT models, but it was not found. "
-                                     "Please install it using `pip install ai-edge-litert`")
+            def tflite_predict(tflite_interpreter, input_index, output_index, x):
+                tflite_interpreter.set_tensor(input_index, x)
+                tflite_interpreter.invoke()
+                return tflite_interpreter.get_tensor(output_index)[None, ]
 
         if inference_framework == "onnx":
             try:
@@ -137,8 +151,11 @@ class Model():
                 def onnx_predict(onnx_model, x):
                     return onnx_model.run(None, {onnx_model.get_inputs()[0].name: x})
 
-            except ImportError:
-                raise ValueError("Tried to import onnxruntime, but it was not found. Please install it using `pip install onnxruntime`")
+            except ImportError as error:
+                raise ValueError(
+                    "Tried to import onnxruntime, but it was not found. "
+                    "Install it with `pip install openwakeword`."
+                ) from error
 
         for mdl_path, mdl_name in zip(wakeword_models, wakeword_model_names):
             # Load openwakeword models

@@ -1,5 +1,14 @@
 # Change Log
 
+## Unreleased
+
+### Changed
+
+* ONNX Runtime is now the default and only base-runtime dependency.
+* LiteRT and Speex noise suppression are available through optional extras.
+* Model downloads select ONNX or LiteRT assets independently and repair partial downloads.
+* Runtime support targets Python 3.12, 3.13, and 3.14.
+
 ## v0.6.0 - 2023/06/15
 
 ### Added

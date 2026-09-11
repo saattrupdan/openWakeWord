@@ -41,8 +41,15 @@ import tempfile
 import mock
 import wave
 
-# Download models needed for tests
-openwakeword.utils.download_models()
+@pytest.fixture(scope="module", autouse=True)
+def pretrained_models():
+    """Download integration assets when the model tests are actually run."""
+    required = openwakeword.MODELS["alexa"]["model_path"]
+    if not os.path.exists(required):
+        try:
+            openwakeword.utils.download_models()
+        except Exception as error:
+            pytest.skip(f"Could not download integration models: {error}")
 
 
 # Tests
@@ -57,13 +64,7 @@ class TestModels:
         prediction = owwModel.predict(np.random.randint(-1000, 1000, 1280).astype(np.int16))
         assert prediction["alexa_v0.1"] >= 0 and prediction["alexa_v0.1"] <= 1
 
-        owwModel = openwakeword.Model(wakeword_models=[
-                                        os.path.join("openwakeword", "resources", "models", "alexa_v0.1.tflite")
-                                      ], inference_framework="tflite")
-
-        # Prediction on random data
-        prediction = owwModel.predict(np.random.randint(-1000, 1000, 1280).astype(np.int16))
-        assert prediction["alexa_v0.1"] >= 0 and prediction["alexa_v0.1"] <= 1
+        # LiteRT is covered separately because it is an optional extra.
 
     def test_predict_with_different_frame_sizes(self):
         # Test with binary model
@@ -106,10 +107,11 @@ class TestModels:
                                                 os.path.join("openwakeword", "resources", "models", "alexa_v0.1.onnx")
                                             ], inference_framework="onnx")
 
-        with mock.patch.dict(sys.modules, {'tflite_runtime': None}):
-            openwakeword.Model(wakeword_models=[
-                                            os.path.join("openwakeword", "resources", "models", "alexa_v0.1.tflite")
-                                        ], inference_framework="tflite")
+        with mock.patch.dict(sys.modules, {'ai_edge_litert': None}):
+            with pytest.raises(ValueError, match="openwakeword\\[tflite\\]"):
+                openwakeword.Model(wakeword_models=[
+                                                os.path.join("openwakeword", "resources", "models", "alexa_v0.1.tflite")
+                                            ], inference_framework="tflite")
 
     def test_predict_with_custom_verifier_model(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -131,10 +133,7 @@ class TestModels:
         # Load model with defaults
         owwModel = openwakeword.Model(wakeword_models=["alexa", "hey mycroft"], inference_framework="onnx")
 
-        owwModel = openwakeword.Model(wakeword_models=["alexa", "hey mycroft"], inference_framework="tflite")
-
-        # Prediction on random data
-        owwModel.predict(np.random.randint(-1000, 1000, 1280).astype(np.int16))
+        # LiteRT model loading is covered by the optional-backend test.
 
     def test_custom_model_label_mapping_dict(self):
         # Load model with model path

@@ -52,9 +52,8 @@ class AudioFeatures():
             sr (int): The sample rate of the audio (default: 16000 khz)
             ncpu (int): The number of CPUs to use when computing melspectrograms and audio features (default: 1)
             inference_framework (str): The inference framework to use when for model prediction. Options are
-                                       "tflite" or "onnx". The default is "tflite" as this results in better
-                                       efficiency on common platforms (x86, ARM64), but in some deployment
-                                       scenarios ONNX models may be preferable.
+                                       "tflite" or "onnx". The default is "onnx". LiteRT support is optional
+                                       and requires the ``tflite`` extra.
             device (str): The device to use when running the models, either "cpu" or "gpu" (default is "cpu".)
                           Note that depending on the inference framework selected and system configuration,
                           this setting may not have an effect. For example, to use a GPU with the ONNX
@@ -469,7 +468,7 @@ def bulk_predict(
                  wakeword_models: List[str],
                  prediction_function: str = 'predict_clip',
                  ncpu: int = 1,
-                 inference_framework: str = "tflite",
+                 inference_framework: str = "onnx",
                  **kwargs
                  ):
     """
@@ -482,9 +481,8 @@ def bulk_predict(
                                    (default is the `predict_clip` method)
         ncpu (int): How many processes to create (up to max of available CPUs)
         inference_framework (str): The inference framework to use when for model prediction. Options are
-                                    "tflite" or "onnx". The default is "tflite" as this results in better
-                                    efficiency on common platforms (x86, ARM64), but in some deployment
-                                    scenarios ONNX models may be preferable.
+                                    "tflite" or "onnx". The default is "onnx". LiteRT support is optional
+                                    and requires the ``tflite`` extra.
         kwargs (dict): Any other keyword arguments to pass to the model initialization or
                        specified prediction function
 
@@ -623,54 +621,63 @@ def download_file(url, target_directory, file_size=None):
 
 # Function to download models from GitHub release assets
 def download_models(
-        model_names: List[str] = [],
-        target_directory: str = os.path.join(pathlib.Path(__file__).parent.resolve(), "resources", "models")
+        model_names: List[str] | None = None,
+        target_directory: str = os.path.join(pathlib.Path(__file__).parent.resolve(), "resources", "models"),
+        inference_framework: str = "onnx",
         ):
     """
     Download the specified models from the release assets in the openWakeWord GitHub repository.
     Uses the official urls in the MODELS dictionary in openwakeword/__init__.py.
 
     Args:
-        model_names (List[str]): The names of the models to download (e.g., hey_jarvis_v0.1). Both ONNX and
-                                 tflite models will be downloaded. If not provided (the default),
-                                 the latest versions of all models will be downloaded.
+        model_names (List[str] | None): The names of the wakeword models to download
+                                        (e.g., ``hey_jarvis_v0.1``). If omitted, all
+                                        wakeword models are downloaded.
         target_directory (str): The directory to save the models to. Defaults to the install location
                                 of openWakeWord (i.e., the `resources/models` directory).
+        inference_framework (str): The model format to download. Defaults to ``"onnx"``;
+                                   ``"tflite"`` downloads the optional LiteRT assets.
     Returns:
         None
     """
-    if not isinstance(model_names, list):
+    if model_names is not None and not isinstance(model_names, list):
         raise ValueError("The model_names argument must be a list of strings")
+    if inference_framework not in {"onnx", "tflite"}:
+        raise ValueError(
+            f"Unsupported inference framework: {inference_framework!r}. "
+            "Choose 'onnx' or 'tflite'."
+        )
 
-    # Always download melspectrogram and embedding models, if they don't already exist
-    if not os.path.exists(target_directory):
-        os.makedirs(target_directory)
-    for feature_model in openwakeword.FEATURE_MODELS.values():
-        if not os.path.exists(os.path.join(target_directory, feature_model["download_url"].split("/")[-1])):
-            download_file(feature_model["download_url"], target_directory)
-            download_file(feature_model["download_url"].replace(".tflite", ".onnx"), target_directory)
+    target = pathlib.Path(target_directory)
+    target.mkdir(parents=True, exist_ok=True)
 
-    # Always download VAD models, if they don't already exist
-    for vad_model in openwakeword.VAD_MODELS.values():
-        if not os.path.exists(os.path.join(target_directory, vad_model["download_url"].split("/")[-1])):
-            download_file(vad_model["download_url"], target_directory)
+    def asset_url(asset: dict) -> str:
+        url = asset["download_url"]
+        if inference_framework == "tflite":
+            url = url.replace(".onnx", ".tflite")
+        return url
 
-    # Get all model urls
-    official_model_urls = [i["download_url"] for i in openwakeword.MODELS.values()]
-    official_model_names = [i["download_url"].split("/")[-1] for i in openwakeword.MODELS.values()]
+    def download_if_missing(url: str) -> None:
+        destination = target / url.rsplit("/", maxsplit=1)[-1]
+        if not destination.exists():
+            download_file(url, str(target))
 
-    if model_names != []:
-        for model_name in model_names:
-            url = [i for i, j in zip(official_model_urls, official_model_names) if model_name in j]
-            if url != []:
-                if not os.path.exists(os.path.join(target_directory, url[0].split("/")[-1])):
-                    download_file(url[0], target_directory)
-                    download_file(url[0].replace(".tflite", ".onnx"), target_directory)
-    else:
-        for official_model_url in official_model_urls:
-            if not os.path.exists(os.path.join(target_directory, official_model_url.split("/")[-1])):
-                download_file(official_model_url, target_directory)
-                download_file(official_model_url.replace(".tflite", ".onnx"), target_directory)
+    # Check every required asset independently so a partial download is repaired.
+    for asset in openwakeword.FEATURE_MODELS.values():
+        download_if_missing(asset_url(asset))
+    for asset in openwakeword.VAD_MODELS.values():
+        download_if_missing(asset["download_url"])
+
+    selected_models = openwakeword.MODELS.values()
+    if model_names:
+        selected_models = [
+            asset for name, asset in openwakeword.MODELS.items()
+            if any(name in requested_name.replace(" ", "_") for requested_name in model_names)
+            or any(requested_name in asset["download_url"] for requested_name in model_names)
+        ]
+
+    for asset in selected_models:
+        download_if_missing(asset_url(asset))
 
 
 # Handle deprecated arguments and naming (thanks to https://stackoverflow.com/a/74564394)
